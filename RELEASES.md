@@ -1,5 +1,46 @@
 # Releases
 
+## v1.16.1-ari
+
+### Resumen
+- Fix de la barra de combustible tapada por el botón de acción en las tarjetas de vehículo.
+- Ajuste de layout flex: el contenido ya no se comprime y el footer queda siempre debajo de las métricas.
+
+### Bug Fixes
+- **Fuel bar overlap:** Eliminado `min-height: 0` y `flex: 1 1 auto` en `.vcard-content` que comprimían las barras de condición/combustible.
+- **Card height:** Las tarjetas con combustible usan `.has-fuel` y altura mínima adecuada; el botón vive en `.vcard-footer` sin solaparse.
+- **List mode:** Métricas con `flex-shrink: 0` y alineación `stretch` en vista compacta (6+ vehículos).
+
+### Archivos clave
+- `nui/css/app.css`
+- `nui/js/app.js`
+- `nui/ui.html`
+- `fxmanifest.lua`
+
+### Upgrade
+1. Sustituye `nui/` y `fxmanifest.lua`.
+2. `restart ari_garage`.
+
+---
+
+## v1.16.0-ari
+
+### Resumen
+- Rediseño completo de la NUI con Plus Jakarta Sans, iconos Lucide y glassmorphism.
+- Vista compacta en lista horizontal cuando hay más de 5 vehículos.
+- Fix del botón desaparecido con 6+ coches (`data-index` + `state.renderedVehicles`).
+
+### UI
+- Sidebar + grid de cards con stats en grid de 3 columnas.
+- Footer fijo por tarjeta con borde superior.
+- Preview local: `nui/ui.html?preview=1`
+
+### Archivos clave
+- `nui/ui.html`, `nui/css/app.css`, `nui/js/app.js`
+- `fxmanifest.lua`
+
+---
+
 ## v1.15.3-ari
 
 ### Resumen

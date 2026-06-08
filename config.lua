@@ -1,6 +1,6 @@
 --[[
     ari_garage — Config
-    Version: 1.15.3-ari
+    Version: 1.15.4-ari
     ─────────────────────────────────────────────────────────────
     All settings are documented inline.
     Do NOT edit anything outside of this file for base behaviour.
@@ -163,6 +163,17 @@ Config.Garages = {
         Scale   = 0.8,
         Colour  = 3,
     },
+    PrisionDelNorte = {
+    Label       = 'prision del norte',
+    EntryPoint  = { x = 1870.45, y = 2588.65, z = 45.67 },
+    SpawnPoint  = { x = 1876.28, y = 2588.37, z = 45.67, heading = 269.14 },
+    ImpoundedName = 'LosSantos',
+    AllowedJobs   = nil,
+    VehicleFilter = 'all',
+    Sprite  = 357,
+    Scale   = 0.8,
+    Colour  = 3,
+},
     -- Example: mechanic-only garage
     --[[
     MechanicShop = {

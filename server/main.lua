@@ -1,6 +1,6 @@
 --[[
     ari_garage — Server
-    Version: 1.15.3-ari
+    Version: 1.15.4-ari
 --]]
 
 local VEHICLE_STATE = {
@@ -11,7 +11,7 @@ local VEHICLE_STATE = {
 
 CreateThread(function()
     local resourceName = GetCurrentResourceName()
-    local version = GetResourceMetadata(resourceName, 'version', 0) or '1.15.3-ari'
+    local version = GetResourceMetadata(resourceName, 'version', 0) or '1.15.4-ari'
     local author = GetResourceMetadata(resourceName, 'author', 0) or 'Ari'
 
     Wait(500)

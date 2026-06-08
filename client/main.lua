@@ -1,6 +1,6 @@
 --[[
     ari_garage — Client
-    Version: 1.15.3-ari
+    Version: 1.15.4-ari
 --]]
 
 local LastMarker, LastPart = nil, nil
@@ -132,6 +132,7 @@ local function BuildLocales()
         free_release = safeTC('free_release'),
         no_results = safeTC('no_results'),
         out_action = safeTC('out_action'),
+        scroll_hint = safeTC('scroll_hint'),
     }
 end
 

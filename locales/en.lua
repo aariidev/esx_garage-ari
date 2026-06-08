@@ -33,6 +33,7 @@ Locales['en'] = {
     ['locate_impound']      = 'Mark impound',
     ['no_results']          = 'No results.',
     ['out_action']          = 'Outside',
+    ['scroll_hint']         = '↑ Scroll to see all vehicles ↑',
     ['admin_menu_title']    = 'Garage — Admin',
     ['admin_keymapping']    = 'Open garage admin menu',
     ['admin_plate_label']   = 'Plate',

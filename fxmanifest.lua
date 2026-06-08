@@ -4,8 +4,8 @@ game 'gta5'
 author 'Ari / ESX-Framework'
 description 'ari_garage - Advanced Vehicle Garage & Impound System'
 
-version '1.15.3-ari'
-legacyversion '1.15.2-ari'
+version '1.16.1-ari'
+legacyversion '1.16.0-ari'
 
 repository 'https://github.com/aariidev/esx_garage-ari'
 

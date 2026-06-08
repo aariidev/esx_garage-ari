@@ -33,6 +33,7 @@ Locales['es'] = {
     ['locate_impound']      = 'Llévame al depó',
     ['no_results']          = 'Nada de nada.',
     ['out_action']          = 'Anda por ahí',
+    ['scroll_hint']         = '↑ Desplázate para ver todos los vehículos ↑',
     ['admin_menu_title']    = 'Garaje — Admin',
     ['admin_keymapping']    = 'Abrir menú admin garaje',
     ['admin_plate_label']   = 'Matrícula',

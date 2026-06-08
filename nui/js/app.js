@@ -1,4 +1,4 @@
-/* ari_garage — NUI app.js  v1.15.0-ari */
+/* ari_garage — NUI app.js  v1.16.1-ari */
 
 (function () {
   'use strict';
@@ -9,6 +9,7 @@
     tab: 'garage',
     garageVehicles: [],
     impoundedVehicles: [],
+    renderedVehicles: [],
     spawnPoint: null,
     poundName: null,
     poundSpawnPoint: null,
@@ -23,6 +24,7 @@
   const overlay = document.getElementById('overlay');
   const garageLabel = document.getElementById('garage-label');
   const contentTitle = document.getElementById('content-title');
+  const topbarSubtitle = document.getElementById('topbar-subtitle');
   const tabImpounded = document.getElementById('tab-impounded');
   const badgeGarage = document.getElementById('badge-garage');
   const badgeImpounded = document.getElementById('badge-impounded');
@@ -31,9 +33,19 @@
   const emptyMsg = document.getElementById('empty-msg');
   const searchInput = document.getElementById('search-input');
   const btnClose = document.getElementById('btn-close');
+  const scrollHint = document.getElementById('scroll-hint');
 
   function clamp(value, min, max) {
     return Math.max(min, Math.min(max, value));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function formatCurrency(value) {
@@ -67,8 +79,10 @@
     });
   }
 
-  function escapeAttr(value) {
-    return JSON.stringify(value || {}).replace(/'/g, '&apos;');
+  function refreshIcons() {
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+      lucide.createIcons();
+    }
   }
 
   function getStateLabel(vehicle) {
@@ -85,8 +99,6 @@
   function getActionLabel(type, vehicle) {
     const loc = state.locales;
     if (type === 'impounded') {
-      // DB `stored` = 0: fuera del garaje (mundo / despawn). Siguen apareciendo en esta pestaña;
-      // deben poder recuperarse igual que desde la lista del garaje.
       if (vehicle.state === 'out') {
         if (state.menuType === 'garage') {
           return loc.action || loc.veh_exit || 'Retrieve';
@@ -106,138 +118,124 @@
     return loc.action || loc.veh_exit || 'Retrieve';
   }
 
-  function buildMetaPills(vehicle, condition) {
+  function buildStatCells(vehicle, condition) {
     const loc = state.locales;
-    const pills = [
-      `<span class="meta-pill"><span>${loc.state_label || 'State'}</span><strong>${getStateLabel(vehicle)}</strong></span>`,
-      `<span class="meta-pill"><span>${loc.veh_condition || 'Condition'}</span><strong>${condition}%</strong></span>`,
+    const cells = [
+      `<div class="stat-cell"><span>${escapeHtml(loc.state_label || 'State')}</span><strong>${escapeHtml(getStateLabel(vehicle))}</strong></div>`,
+      `<div class="stat-cell"><span>${escapeHtml(loc.veh_condition || 'Condition')}</span><strong>${condition}%</strong></div>`,
     ];
 
     if (vehicle.state === 'impounded') {
       const costLabel = vehicle.releaseFree
         ? (loc.free_release || 'Free release')
-        : `${loc.release_cost || 'Release cost'} ${formatCurrency(vehicle.releaseCost)}`;
-      pills.push(`<span class="meta-pill accent"><span>${loc.pay_impound || 'Pay & Release'}</span><strong>${costLabel}</strong></span>`);
+        : formatCurrency(vehicle.releaseCost);
+      cells.push(`<div class="stat-cell accent"><span>${escapeHtml(loc.release_cost || 'Release')}</span><strong>${escapeHtml(costLabel)}</strong></div>`);
     }
 
-    return pills.join('');
+    const colsClass = cells.length === 2 ? ' cols-2' : '';
+    return `<div class="vcard-stats${colsClass}">${cells.join('')}</div>`;
   }
 
-  function buildActionButton(type, vehicle) {
-    const label = getActionLabel(type, vehicle);
+  function buildMetrics(vehicle, condition, conditionState) {
+    const loc = state.locales;
+    const blocks = [
+      `<div class="metric-block">
+        <div class="metric-row">
+          <span>${escapeHtml(loc.veh_condition || 'Condition')}</span>
+          <strong>${condition}%</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill ${conditionState}" style="width:${condition}%"></div>
+        </div>
+      </div>`,
+    ];
+
+    if (state.showFuel && vehicle.props && typeof vehicle.props.fuelLevel === 'number') {
+      const fuelPct = clamp(Math.round(vehicle.props.fuelLevel), 0, 100);
+      blocks.push(`<div class="metric-block">
+        <div class="metric-row">
+          <span>${escapeHtml(loc.fuel || 'Fuel')}</span>
+          <strong>${fuelPct}%</strong>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill fuel" style="width:${fuelPct}%"></div>
+        </div>
+      </div>`);
+    }
+
+    return `<div class="vcard-metrics">${blocks.join('')}</div>`;
+  }
+
+  function buildActionButton(type, vehicle, index) {
+    const label = escapeHtml(getActionLabel(type, vehicle));
+    const idx = Number(index);
 
     if (type === 'impounded') {
       if (vehicle.state === 'out') {
         if (state.menuType === 'garage') {
-          return `
-      <button class="btn-action btn-primary vcard-spawn-btn"
-        data-props='${escapeAttr(vehicle.props)}'
-        data-plate="${(vehicle.plate || '').replace(/"/g, '&quot;')}"
-        data-release-cost="0"
-        data-require-impound-pay="0"
-        data-impound-pound="">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="5 12 19 12"></polyline><polyline points="12 5 19 12 12 19"></polyline>
-        </svg>
-        ${label}
-      </button>`;
+          return `<button type="button" class="btn-action btn-primary vcard-spawn-btn" data-index="${idx}">
+            <i data-lucide="arrow-right" aria-hidden="true"></i>${label}
+          </button>`;
         }
-        return `
-          <button class="btn-action btn-disabled" disabled>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9"></circle><path d="M8 12h8"></path>
-            </svg>
-            ${label}
+        return `<button type="button" class="btn-action btn-disabled" disabled>
+            <i data-lucide="ban" aria-hidden="true"></i>${label}
           </button>`;
       }
 
       if (vehicle.state === 'impounded' && state.menuType === 'garage') {
-        const needPay = !vehicle.releaseFree;
-        const fee = Number(vehicle.releaseCost || 0);
-        return `
-        <button class="btn-action btn-primary vcard-spawn-btn"
-          data-props='${escapeAttr(vehicle.props)}'
-          data-plate="${(vehicle.plate || '').replace(/"/g, '&quot;')}"
-          data-release-cost="${needPay ? fee : 0}"
-          data-require-impound-pay="${needPay ? '1' : '0'}"
-          data-impound-pound="${(vehicle.pound || '').replace(/"/g, '&quot;')}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="5 12 19 12"></polyline><polyline points="12 5 19 12 12 19"></polyline>
-          </svg>
-          ${label}
+        return `<button type="button" class="btn-action btn-primary vcard-spawn-btn" data-index="${idx}">
+          <i data-lucide="arrow-right" aria-hidden="true"></i>${label}
         </button>`;
       }
 
-      return `
-        <button class="btn-action btn-secondary vcard-impound-btn"
-          data-mode="${state.menuType === 'impound' ? 'release' : 'track'}"
-          data-props='${escapeAttr(vehicle.props)}'
-          data-release-cost="${vehicle.releaseCost || 0}">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 12h16"></path><path d="M14 6l6 6-6 6"></path>
-          </svg>
-          ${label}
+      return `<button type="button" class="btn-action btn-secondary vcard-impound-btn"
+          data-index="${idx}"
+          data-mode="${state.menuType === 'impound' ? 'release' : 'track'}">
+          <i data-lucide="map-pin" aria-hidden="true"></i>${label}
         </button>`;
     }
 
-    return `
-      <button class="btn-action btn-primary vcard-spawn-btn"
-        data-props='${escapeAttr(vehicle.props)}'
-        data-plate="${(vehicle.plate || '').replace(/"/g, '&quot;')}"
-        data-release-cost="${vehicle.releaseCost || 0}"
-        data-require-impound-pay="0"
-        data-impound-pound="">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="5 12 19 12"></polyline><polyline points="12 5 19 12 12 19"></polyline>
-        </svg>
-        ${label}
-      </button>`;
+    return `<button type="button" class="btn-action btn-primary vcard-spawn-btn" data-index="${idx}">
+      <i data-lucide="arrow-right" aria-hidden="true"></i>${label}
+    </button>`;
   }
 
-  function buildCard(vehicle, type, index) {
+  function buildCard(vehicle, type, index, listMode) {
     const condition = calcCondition(vehicle.props);
     const conditionState = conditionClass(condition);
-    const delay = state.animateCards ? `animation-delay:${index * 50}ms` : '';
-    const loc = state.locales;
-
-    let fuelBlock = '';
-    if (state.showFuel && vehicle.props && typeof vehicle.props.fuelLevel === 'number') {
-      const fuelPct = clamp(Math.round(vehicle.props.fuelLevel), 0, 100);
-      fuelBlock = `
-        <div class="vcard-fuel">
-          <div class="metric-row">
-            <span>${loc.fuel || 'Fuel'}</span>
-            <strong>${fuelPct}%</strong>
-          </div>
-          <div class="fuel-bar"><div class="fuel-fill" style="width:${fuelPct}%"></div></div>
-        </div>`;
-    }
+    const delay = state.animateCards ? `animation-delay:${Math.min(index, 12) * 35}ms` : '';
+    const listClass = listMode ? ' vcard-list' : '';
+    const hasFuel = state.showFuel && vehicle.props && typeof vehicle.props.fuelLevel === 'number';
+    const fuelClass = hasFuel ? ' has-fuel' : '';
 
     return `
-      <article class="vcard${state.animateCards ? ' animate-in' : ''}" style="${delay}"
-        data-model="${(vehicle.model || '').toLowerCase()}"
-        data-plate="${(vehicle.plate || '').toLowerCase()}">
+      <article class="vcard${state.animateCards ? ' animate-in' : ''}${listClass}${fuelClass}" style="${delay}"
+        data-model="${escapeHtml((vehicle.model || '').toLowerCase())}"
+        data-plate="${escapeHtml((vehicle.plate || '').toLowerCase())}">
         <div class="vcard-orb"></div>
-        <div class="vcard-header">
+        <header class="vcard-header">
           <div>
-            <span class="vcard-kicker">ari_garage</span>
-            <h3 class="vcard-model">${vehicle.model || 'Unknown'}</h3>
+            <span class="vcard-kicker">vehicle</span>
+            <h3 class="vcard-model">${escapeHtml(vehicle.model || 'Unknown')}</h3>
           </div>
-          <span class="vcard-plate">${vehicle.plate || '—'}</span>
+          <span class="vcard-plate">${escapeHtml(vehicle.plate || '—')}</span>
+        </header>
+        <div class="vcard-content">
+          ${buildStatCells(vehicle, condition)}
+          ${buildMetrics(vehicle, condition, conditionState)}
         </div>
-        <div class="vcard-meta">${buildMetaPills(vehicle, condition)}</div>
-        <div class="vcard-condition">
-          <div class="metric-row">
-            <span>${loc.veh_condition || 'Condition'}</span>
-            <strong>${condition}%</strong>
-          </div>
-          <div class="condition-bar">
-            <div class="condition-fill ${conditionState}" style="width:${condition}%"></div>
-          </div>
-        </div>
-        ${fuelBlock}
-        <div class="vcard-actions">${buildActionButton(type, vehicle)}</div>
+        <footer class="vcard-footer">${buildActionButton(type, vehicle, index)}</footer>
       </article>`;
+  }
+
+  function updateScrollHint(count, listMode) {
+    if (!scrollHint) return;
+    const show = count > 4;
+    scrollHint.classList.toggle('hidden', !show);
+    if (show) {
+      const hint = state.locales.scroll_hint || `${count} vehicles — scroll to see all`;
+      scrollHint.textContent = listMode ? `↑ ${hint} (compact view) ↑` : `↑ ${hint} ↑`;
+    }
   }
 
   function renderGrid() {
@@ -252,10 +250,19 @@
         || (vehicle.plate || '').toLowerCase().includes(query);
     });
 
-    vehicleGrid.innerHTML = filtered.map((vehicle, index) => buildCard(vehicle, type, index)).join('');
+    state.renderedVehicles = filtered.map((vehicle) => ({
+      ...vehicle,
+      props: vehicle.props ? { ...vehicle.props } : {},
+    }));
+
+    const listMode = filtered.length > 5;
+    vehicleGrid.innerHTML = filtered.map((vehicle, index) => buildCard(vehicle, type, index, listMode)).join('');
 
     const isEmpty = filtered.length === 0;
     emptyState.classList.toggle('hidden', !isEmpty);
+    vehicleGrid.classList.toggle('list-mode', listMode);
+    updateScrollHint(filtered.length, listMode);
+    refreshIcons();
 
     if (!isEmpty) {
       return;
@@ -279,6 +286,11 @@
       button.classList.toggle('active', button.dataset.tab === tab);
     });
     contentTitle.textContent = getTabTitle(tab);
+    if (topbarSubtitle) {
+      topbarSubtitle.textContent = tab === 'impounded'
+        ? (state.locales.impound_subtitle || 'Pay fees or track impounded vehicles')
+        : (state.locales.garage_subtitle || 'Select a vehicle to retrieve');
+    }
     searchInput.value = '';
     renderGrid();
   }
@@ -297,6 +309,21 @@
     document.documentElement.style.setProperty('--accent-dim', `rgba(${red},${green},${blue},0.18)`);
     document.documentElement.style.setProperty('--accent-soft', `rgba(${red},${green},${blue},0.10)`);
     document.documentElement.style.setProperty('--accent-glow', `rgba(${red},${green},${blue},0.42)`);
+  }
+
+  function getSpawnPayload(vehicle) {
+    const needPay = vehicle.state === 'impounded' && !vehicle.releaseFree && state.menuType === 'garage';
+    const fee = needPay ? Number(vehicle.releaseCost || state.defaultPoundCost || 0) : 0;
+
+    return {
+      vehicleProps: vehicle.props,
+      plate: vehicle.plate || vehicle.props?.plate || '',
+      spawnPoint: state.spawnPoint,
+      exitVehicleCost: fee,
+      poundName: state.poundName,
+      requireImpoundPay: needPay,
+      impoundPound: vehicle.pound || '',
+    };
   }
 
   function showMenu(data) {
@@ -322,6 +349,7 @@
 
     switchTab('garage');
     overlay.classList.remove('hidden');
+    refreshIcons();
     searchInput.focus();
   }
 
@@ -329,6 +357,16 @@
     const isPreview = window.location.protocol === 'file:' && window.location.search.includes('preview=1');
     if (!isPreview) {
       return;
+    }
+
+    const many = [];
+    for (let i = 1; i <= 8; i += 1) {
+      many.push({
+        model: `Preview Car ${i}`,
+        plate: `ARI ${String(i).padStart(3, '0')}`,
+        state: 'stored',
+        props: { bodyHealth: 900, engineHealth: 820, tankHealth: 1000, fuelLevel: 76, plate: `ARI${i}` },
+      });
     }
 
     showMenu({
@@ -343,44 +381,16 @@
       spawnPoint: { x: 0, y: 0, z: 0, heading: 0 },
       locales: {
         action: 'Retrieve Vehicle',
-        pay_impound: 'Pay & Release',
-        locate_impound: 'Mark impound',
+        scroll_hint: 'Scroll to see all vehicles',
         veh_condition: 'Condition',
-        no_veh_impounded: 'No impounded vehicles.',
         no_veh_parking: 'No vehicles stored here.',
         fuel: 'Fuel',
         state_label: 'State',
         state_garage: 'Stored',
-        state_impound: 'Impounded',
-        state_out: 'Out',
-        release_cost: 'Release cost',
-        free_release: 'Free release',
-        no_results: 'No results.',
-        out_action: 'Outside',
+        garage_subtitle: 'Select a vehicle to retrieve',
       },
-      vehiclesList: JSON.stringify([
-        {
-          model: 'Comet S2',
-          plate: 'ARI 001',
-          state: 'stored',
-          props: { bodyHealth: 900, engineHealth: 820, tankHealth: 1000, fuelLevel: 76 },
-        },
-        {
-          model: 'Bati 801',
-          plate: 'NEON 88',
-          state: 'stored',
-          props: { bodyHealth: 780, engineHealth: 640, tankHealth: 1000, fuelLevel: 48 },
-        },
-      ]),
-      vehiclesImpoundedList: JSON.stringify([
-        {
-          model: 'Sultan RS',
-          plate: 'POUND 7',
-          state: 'impounded',
-          releaseCost: 4200,
-          props: { bodyHealth: 700, engineHealth: 420, tankHealth: 1000, fuelLevel: 31 },
-        },
-      ]),
+      vehiclesList: JSON.stringify(many),
+      vehiclesImpoundedList: JSON.stringify([]),
     });
   }
 
@@ -410,24 +420,24 @@
   vehicleGrid.addEventListener('click', (event) => {
     const spawnButton = event.target.closest('.vcard-spawn-btn');
     if (spawnButton) {
-      post('spawnVehicle', {
-        vehicleProps: JSON.parse(spawnButton.dataset.props),
-        plate: spawnButton.dataset.plate || '',
-        spawnPoint: state.spawnPoint,
-        exitVehicleCost: Number(spawnButton.dataset.releaseCost || state.defaultPoundCost || 0),
-        poundName: state.poundName,
-        requireImpoundPay: spawnButton.dataset.requireImpoundPay === '1',
-        impoundPound: spawnButton.dataset.impoundPound || '',
-      });
+      const index = Number(spawnButton.dataset.index);
+      const vehicle = state.renderedVehicles[index];
+      if (!vehicle) return;
+
+      post('spawnVehicle', getSpawnPayload(vehicle));
       hideVisual();
       return;
     }
 
     const impoundButton = event.target.closest('.vcard-impound-btn');
     if (impoundButton) {
+      const index = Number(impoundButton.dataset.index);
+      const vehicle = state.renderedVehicles[index];
+      if (!vehicle) return;
+
       post('impound', {
         mode: impoundButton.dataset.mode,
-        vehicleProps: JSON.parse(impoundButton.dataset.props),
+        vehicleProps: vehicle.props,
         poundName: state.poundName,
         poundSpawnPoint: state.poundSpawnPoint,
       });
@@ -448,5 +458,6 @@
     }
   });
 
+  refreshIcons();
   bootPreviewMode();
 })();
